@@ -6,30 +6,28 @@ name: Format Check
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - "**.go"
-      - "go.mod"
-      - "go.sum"
 
 permissions: {}
 
 jobs:
   gofmt_check:
     runs-on: ubuntu-latest
-    if: github.actor != 'renovate[bot]'
 
     steps:
       - name: Checkout main
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        if: github.actor != 'renovate[bot]'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
       - name: Set up Go
+        if: github.actor != 'renovate[bot]'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: "go.mod"
 
       - name: Run go fmt
+        if: github.actor != 'renovate[bot]'
         run: |
           if [ -n "$(go fmt ./...)" ]; then
             echo "The following files are not formatted correctly:"
