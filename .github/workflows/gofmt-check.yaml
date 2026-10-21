@@ -6,10 +6,6 @@ name: Format Check
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - "**.go"
-      - "go.mod"
-      - "go.sum"
 
 permissions: {}
 

@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - "staging"
-    paths:
-      - "**.go"
-      - "go.mod"
-      - "go.sum"
   workflow_dispatch:
 
 env:
