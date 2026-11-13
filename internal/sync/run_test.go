@@ -28,6 +28,9 @@ const (
 	aceRosterJSON = `{"data":[{"cid":1000001}]}`
 
 	aceRosterPath = "/user/roles/ZHQ/ACE"
+	facilityPath  = "/facility/ZAU"
+
+	facilityJSON = `{"testing":false,"data":{"facility":{"info":{"atm":1000001,"datm":0,"ta":0,"ec":1000001,"fe":0,"wm":0},"roles":[]}}}`
 )
 
 type request struct {
@@ -51,6 +54,8 @@ func newFakeVatusa(t *testing.T, rosterJSON string, status int) *httptest.Server
 		switch req.URL.Path {
 		case aceRosterPath:
 			_, _ = writer.Write([]byte(`{"data":[]}`))
+		case facilityPath:
+			_, _ = writer.Write([]byte(facilityJSON))
 		default:
 			_, _ = writer.Write([]byte(rosterJSON))
 		}
@@ -192,6 +197,93 @@ func TestRunUpdatesRolesWithExistingRolesIncluded(t *testing.T) {
 	}
 }
 
+func TestRunAssignsTeamRoleToFacilityNonHolder(t *testing.T) {
+	vatusaJSON := `{"testing":false,"data":[{"cid":1000002,"fname":"Alex","lname":"Jones","email":"alex@example.com","facility":"ZAU","rating":3,"membership":"home","flag_broadcastOptedIn":true,"roles":[{"id":1,"cid":1000002,"facility":"ZAU","role":"EC","created_at":"2026-01-01T00:00:00Z"}],"facility_join":"2026-01-01T00:00:00Z"}]}`
+	zauRoles := `[{"name":"Events Coordinator","code":"EC","order":1,"class":"staff"},{"name":"Events Team","code":"ET","order":2,"class":"staff"}]`
+
+	vatusaSrv := newFakeVatusa(t, vatusaJSON, http.StatusOK)
+	defer vatusaSrv.Close()
+
+	zauSrv, requests := newFakeZau(t, existingUserZauJSON, http.StatusOK, zauRoles, http.StatusOK)
+	defer zauSrv.Close()
+
+	vatusaClient, zauClient := newClients(t, vatusaSrv.URL, zauSrv.URL)
+
+	result, err := Run(context.Background(), vatusaClient, zauClient, fixedNow)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Added != 1 {
+		t.Errorf("expected 1 added, got %d", result.Added)
+	}
+
+	post := findRequest(requests, http.MethodPost, "/controller/1000002")
+	if post == nil {
+		t.Fatalf("expected POST /controller/1000002, requests: %+v", *requests)
+	}
+
+	var payload zau.PostControllerPayload
+
+	err = json.Unmarshal([]byte(post.body), &payload)
+	if err != nil {
+		t.Fatalf("invalid post body %q: %v", post.body, err)
+	}
+
+	if !slices.Equal(payload.RoleCodes, []string{"et"}) {
+		t.Errorf("expected roles [et], got %v", payload.RoleCodes)
+	}
+}
+
+func TestRunDegradesWhenFacilityInfoFetchFails(t *testing.T) {
+	vatusaJSON := `{"testing":false,"data":[{"cid":1000002,"fname":"Alex","lname":"Jones","email":"alex@example.com","facility":"ZAU","rating":3,"membership":"home","flag_broadcastOptedIn":true,"roles":[{"id":1,"cid":1000002,"facility":"ZAU","role":"EC","created_at":"2026-01-01T00:00:00Z"}],"facility_join":"2026-01-01T00:00:00Z"}]}`
+	zauRoles := `[{"name":"Events Coordinator","code":"EC","order":1,"class":"staff"},{"name":"Events Team","code":"ET","order":2,"class":"staff"}]`
+
+	vatusaSrv := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, req *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+
+		switch req.URL.Path {
+		case facilityPath:
+			writer.WriteHeader(http.StatusInternalServerError)
+		case aceRosterPath:
+			_, _ = writer.Write([]byte(`{"data":[]}`))
+		default:
+			_, _ = writer.Write([]byte(vatusaJSON))
+		}
+	}))
+	defer vatusaSrv.Close()
+
+	zauSrv, requests := newFakeZau(t, existingUserZauJSON, http.StatusOK, zauRoles, http.StatusOK)
+	defer zauSrv.Close()
+
+	vatusaClient, zauClient := newClients(t, vatusaSrv.URL, zauSrv.URL)
+
+	result, err := Run(context.Background(), vatusaClient, zauClient, fixedNow)
+	if err != nil {
+		t.Fatalf("expected degrade, got error: %v", err)
+	}
+
+	if result.Added != 1 {
+		t.Errorf("expected 1 added, got %d", result.Added)
+	}
+
+	post := findRequest(requests, http.MethodPost, "/controller/1000002")
+	if post == nil {
+		t.Fatalf("expected POST /controller/1000002, requests: %+v", *requests)
+	}
+
+	var payload zau.PostControllerPayload
+
+	err = json.Unmarshal([]byte(post.body), &payload)
+	if err != nil {
+		t.Fatalf("invalid post body %q: %v", post.body, err)
+	}
+
+	if !slices.Equal(payload.RoleCodes, []string{"et"}) {
+		t.Errorf("expected roles [et], got %v", payload.RoleCodes)
+	}
+}
+
 func TestRunGrantsACERoleToExistingUser(t *testing.T) {
 	vatusaJSON := `{"testing":false,"data":[{"cid":1000001,"fname":"Jane","lname":"Smith","email":"jane@example.com","facility":"ZAU","rating":3,"membership":"home","flag_broadcastOptedIn":true,"roles":[{"id":1,"cid":1000001,"facility":"ZAU","role":"ATM","created_at":"2026-01-01T00:00:00Z"}],"facility_join":"2026-01-01T00:00:00Z"}]}`
 	zauJSON := `{"home":[{"cid":1000001,"fname":"Jane","lname":"Smith","email":"jane@example.com","rating":3,"homeFacility":"ZAU","broadcast":true,"member":true,"vis":false,"prefName":false,"certCodes":[],"roleCodes":["atm"]}],"visiting":[],"removed":[]}`
@@ -199,9 +291,12 @@ func TestRunGrantsACERoleToExistingUser(t *testing.T) {
 	vatusaSrv := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, req *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 
-		if req.URL.Path == aceRosterPath {
+		switch req.URL.Path {
+		case aceRosterPath:
 			_, _ = writer.Write([]byte(aceRosterJSON))
-		} else {
+		case facilityPath:
+			_, _ = writer.Write([]byte(facilityJSON))
+		default:
 			_, _ = writer.Write([]byte(vatusaJSON))
 		}
 	}))
@@ -249,9 +344,12 @@ func TestRunDoesNotInsertACEMemberWhoIsNotInZau(t *testing.T) {
 	vatusaSrv := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, req *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 
-		if req.URL.Path == aceRosterPath {
+		switch req.URL.Path {
+		case aceRosterPath:
 			_, _ = writer.Write([]byte(aceRoster))
-		} else {
+		case facilityPath:
+			_, _ = writer.Write([]byte(facilityJSON))
+		default:
 			_, _ = writer.Write([]byte(vatusaJSON))
 		}
 	}))
