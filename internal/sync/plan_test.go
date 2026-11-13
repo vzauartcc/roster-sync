@@ -77,13 +77,13 @@ func assertNoOp(t *testing.T, ops []Operation, kind OperationKind) {
 }
 
 func TestPlanCreatesNewUserWithFilteredRoles(t *testing.T) {
-	vUser := vController(1000001, "home", []string{"ATM", "C3"}, "ZAU")
+	vUser := vController(1000001, "home", []string{vatusaRoleATM, "C3"}, "ZAU")
 	vUser.Roles = append(vUser.Roles,
-		vatusa.Role{Facility: "BOS", Role: "ATM"},
+		vatusa.Role{Facility: facilityBOS, Role: vatusaRoleATM},
 		vatusa.Role{Facility: "ZHQ", Role: "ZZZ"},
 	)
 
-	ops := Plan(zau.Roster{}, []vatusa.Controller{vUser}, []string{"atm", "c3"}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
+	ops := Plan(zau.Roster{}, []vatusa.Controller{vUser}, []string{roleATM, "c3"}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
 
 	if len(ops) != 1 {
 		t.Fatalf("expected 1 op, got %d: %+v", len(ops), ops)
@@ -94,22 +94,22 @@ func TestPlanCreatesNewUserWithFilteredRoles(t *testing.T) {
 		t.Fatalf("expected OpCreate, got %s", operation.Kind)
 	}
 
-	want := []string{"atm", "c3"}
+	want := []string{roleATM, "c3"}
 	if !slices.Equal(operation.Roles, want) {
 		t.Errorf("expected roles %v, got %v", want, operation.Roles)
 	}
 }
 
 func TestPlanCreatesVisitorWithRoles(t *testing.T) {
-	vUser := vController(1000002, "visit", []string{"EC"}, "ZAU")
+	vUser := vController(1000002, "visit", []string{vatusaRoleEC}, "ZAU")
 
-	ops := Plan(zau.Roster{}, []vatusa.Controller{vUser}, []string{"atm", "ec"}, vatusa.FacilityInfo{EC: 1000002}, fixedNow)
+	ops := Plan(zau.Roster{}, []vatusa.Controller{vUser}, []string{roleATM, roleEC}, vatusa.FacilityInfo{EC: 1000002}, fixedNow)
 
 	if len(ops) != 1 || ops[0].Kind != OpCreate {
 		t.Fatalf("expected 1 create op, got %+v", ops)
 	}
 
-	if !slices.Equal(ops[0].Roles, []string{"ec"}) {
+	if !slices.Equal(ops[0].Roles, []string{roleEC}) {
 		t.Errorf("expected visitor to receive roles, got %v", ops[0].Roles)
 	}
 }
@@ -127,7 +127,7 @@ func planNewUserRoles(t *testing.T, role string, available []string, staff vatus
 	return ops[0].Roles
 }
 
-var allRoleCodes = []string{"atm", "datm", "ta", "ec", "fe", "wm", "et", "ft", "wt"}
+var allRoleCodes = []string{roleATM, roleDATM, roleTA, roleEC, roleFE, roleWM, roleET, roleFT, roleWT}
 
 func TestPlanAssignsNamedRoleToFacilityStaffHolder(t *testing.T) {
 	cases := []struct {
@@ -136,12 +136,12 @@ func TestPlanAssignsNamedRoleToFacilityStaffHolder(t *testing.T) {
 		want  string
 		staff vatusa.FacilityInfo
 	}{
-		{"ATM", "ATM", "atm", vatusa.FacilityInfo{ATM: 1000001}},
-		{"DATM", "DATM", "datm", vatusa.FacilityInfo{DATM: 1000001}},
-		{"TA", "TA", "ta", vatusa.FacilityInfo{TA: 1000001}},
-		{"EC", "EC", "ec", vatusa.FacilityInfo{EC: 1000001}},
-		{"FE", "FE", "fe", vatusa.FacilityInfo{FE: 1000001}},
-		{"WM", "WM", "wm", vatusa.FacilityInfo{WM: 1000001}},
+		{vatusaRoleATM, vatusaRoleATM, roleATM, vatusa.FacilityInfo{ATM: 1000001}},
+		{vatusaRoleDATM, vatusaRoleDATM, roleDATM, vatusa.FacilityInfo{DATM: 1000001}},
+		{vatusaRoleTA, vatusaRoleTA, roleTA, vatusa.FacilityInfo{TA: 1000001}},
+		{vatusaRoleEC, vatusaRoleEC, roleEC, vatusa.FacilityInfo{EC: 1000001}},
+		{vatusaRoleFE, vatusaRoleFE, roleFE, vatusa.FacilityInfo{FE: 1000001}},
+		{vatusaRoleWM, vatusaRoleWM, roleWM, vatusa.FacilityInfo{WM: 1000001}},
 	}
 
 	for _, tc := range cases {
@@ -161,9 +161,9 @@ func TestPlanAssignsTeamRoleToNonHolder(t *testing.T) {
 		role string
 		team string
 	}{
-		{"EC", "et"},
-		{"FE", "ft"},
-		{"WM", "wt"},
+		{vatusaRoleEC, roleET},
+		{vatusaRoleFE, roleFT},
+		{vatusaRoleWM, roleWT},
 	}
 
 	for _, tc := range cases {
@@ -179,7 +179,7 @@ func TestPlanAssignsTeamRoleToNonHolder(t *testing.T) {
 }
 
 func TestPlanSkipsSeniorRoleForNonHolder(t *testing.T) {
-	for _, role := range []string{"ATM", "DATM", "TA"} {
+	for _, role := range []string{vatusaRoleATM, vatusaRoleDATM, vatusaRoleTA} {
 		t.Run(role, func(t *testing.T) {
 			got := planNewUserRoles(t, role, allRoleCodes, vatusa.FacilityInfo{})
 
@@ -195,9 +195,9 @@ func TestPlanSkipsTeamRoleWhenNotAvailable(t *testing.T) {
 		role      string
 		available string
 	}{
-		{"EC", "ec"},
-		{"FE", "fe"},
-		{"WM", "wm"},
+		{vatusaRoleEC, roleEC},
+		{vatusaRoleFE, roleFE},
+		{vatusaRoleWM, roleWM},
 	}
 
 	for _, tc := range cases {
@@ -212,74 +212,74 @@ func TestPlanSkipsTeamRoleWhenNotAvailable(t *testing.T) {
 }
 
 func TestPlanAddsTeamRoleToExistingNonHolder(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"ia"})}}
-	vUser := vController(1000001, "home", []string{"EC"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleIA})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleEC}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"ec", "et"}, vatusa.FacilityInfo{}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleEC, roleET}, vatusa.FacilityInfo{}, fixedNow)
 
 	if len(ops) != 1 || ops[0].Kind != OpUpdateRoles {
 		t.Fatalf("expected 1 role update op, got %+v", ops)
 	}
 
-	want := []string{"ia", "et"}
+	want := []string{roleIA, roleET}
 	if !slices.Equal(ops[0].Roles, want) {
 		t.Errorf("expected roles %v, got %v", want, ops[0].Roles)
 	}
 }
 
 func TestPlanRemovesTeamRoleWhenControllerIsHolder(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"et"})}}
-	vUser := vController(1000001, "home", []string{"EC"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleET})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleEC}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"ec", "et"}, vatusa.FacilityInfo{EC: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleEC, roleET}, vatusa.FacilityInfo{EC: 1000001}, fixedNow)
 
 	if len(ops) != 1 || ops[0].Kind != OpUpdateRoles {
 		t.Fatalf("expected 1 role update op, got %+v", ops)
 	}
 
-	want := []string{"ec"}
+	want := []string{roleEC}
 	if !slices.Equal(ops[0].Roles, want) {
 		t.Errorf("expected roles %v, got %v", want, ops[0].Roles)
 	}
 }
 
 func TestPlanRemovesTeamRoleWhenHolderAlreadyHasBoth(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"ec", "et"})}}
-	vUser := vController(1000001, "home", []string{"EC"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleEC, roleET})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleEC}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"ec", "et"}, vatusa.FacilityInfo{EC: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleEC, roleET}, vatusa.FacilityInfo{EC: 1000001}, fixedNow)
 
 	if len(ops) != 1 || ops[0].Kind != OpUpdateRoles {
 		t.Fatalf("expected 1 role update op, got %+v", ops)
 	}
 
-	want := []string{"ec"}
+	want := []string{roleEC}
 	if !slices.Equal(ops[0].Roles, want) {
 		t.Errorf("expected roles %v, got %v", want, ops[0].Roles)
 	}
 }
 
 func TestPlanKeepsTeamRoleWhenExplicitlyAssigned(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"ec"})}}
-	vUser := vController(1000001, "home", []string{"EC", "ET"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleEC})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleEC, "ET"}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"ec", "et"}, vatusa.FacilityInfo{EC: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleEC, roleET}, vatusa.FacilityInfo{EC: 1000001}, fixedNow)
 
 	if len(ops) != 1 || ops[0].Kind != OpUpdateRoles {
 		t.Fatalf("expected 1 role update op, got %+v", ops)
 	}
 
-	want := []string{"ec", "et"}
+	want := []string{roleEC, roleET}
 	if !slices.Equal(ops[0].Roles, want) {
 		t.Errorf("expected roles %v, got %v", want, ops[0].Roles)
 	}
 }
 
 func TestPlanNoOpsWhenNothingChanged(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"atm"})}}
-	vUser := vController(1000001, "home", []string{"ATM"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleATM})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleATM}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm", "ec"}, vatusa.FacilityInfo{ATM: 1000001, EC: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM, roleEC}, vatusa.FacilityInfo{ATM: 1000001, EC: 1000001}, fixedNow)
 
 	if len(ops) != 0 {
 		t.Errorf("expected no ops, got %+v", ops)
@@ -287,31 +287,31 @@ func TestPlanNoOpsWhenNothingChanged(t *testing.T) {
 }
 
 func TestPlanEmitsCoreUpdateOnChange(t *testing.T) {
-	z := zUser(1000001, true, false, []string{"atm"})
+	z := zUser(1000001, true, false, []string{roleATM})
 	z.FName = "Old"
 	roster := zau.Roster{Home: []zau.User{z}}
-	vUser := vController(1000001, "home", []string{"ATM"}, "ZAU")
+	vUser := vController(1000001, "home", []string{vatusaRoleATM}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm"}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
 
 	assertOp(t, ops, OpUpdateCore)
 }
 
 func TestPlanEmitsRatingUpdateOnChange(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"atm"})}}
-	vUser := vController(1000001, "home", []string{"ATM"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleATM})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleATM}, "ZAU")
 	vUser.Rating = 5
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm"}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
 
 	assertOp(t, ops, OpUpdateRating)
 }
 
 func TestPlanEmitsMembershipWhenNotMember(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, false, false, []string{"atm"})}}
-	vUser := vController(1000001, "home", []string{"ATM"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, false, false, []string{roleATM})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleATM}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm"}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
 
 	assertOp(t, ops, OpUpdateMembership)
 }
@@ -320,52 +320,52 @@ func TestPlanEmitsVisitUpdateWhenStatusChanges(t *testing.T) {
 	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, true, nil)}}
 	vUser := vController(1000001, "home", nil, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm"}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
 
 	assertOp(t, ops, OpUpdateVisit)
 }
 
 func TestPlanEmitsVisitUpdateWhenVisitorHomeFacilityChanges(t *testing.T) {
 	z := zUser(1000001, true, true, nil)
-	z.HomeFacility = "BOS"
+	z.HomeFacility = facilityBOS
 	roster := zau.Roster{Home: []zau.User{z}}
 	vUser := vController(1000001, "visit", nil, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm"}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
 
 	assertOp(t, ops, OpUpdateVisit)
 }
 
 func TestPlanEmitsRoleUpdateWithUnion(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"atm"})}}
-	vUser := vController(1000001, "home", []string{"ATM", "EC"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleATM})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleATM, vatusaRoleEC}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm", "ec"}, vatusa.FacilityInfo{ATM: 1000001, EC: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM, roleEC}, vatusa.FacilityInfo{ATM: 1000001, EC: 1000001}, fixedNow)
 
 	if len(ops) != 1 || ops[0].Kind != OpUpdateRoles {
 		t.Fatalf("expected 1 role update op, got %+v", ops)
 	}
 
-	want := []string{"atm", "ec"}
+	want := []string{roleATM, roleEC}
 	if !slices.Equal(ops[0].Roles, want) {
 		t.Errorf("expected roles %v, got %v", want, ops[0].Roles)
 	}
 }
 
 func TestPlanNoRoleUpdateWhenNoNewRoles(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"atm"})}}
-	vUser := vController(1000001, "home", []string{"ATM"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleATM})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleATM}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm"}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
 
 	assertNoOp(t, ops, OpUpdateRoles)
 }
 
 func TestPlanNoRoleUpdateWhenZauUserHasExtraRole(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"atm", "ia"})}}
-	vUser := vController(1000001, "home", []string{"ATM"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleATM, roleIA})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleATM}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm", "ec"}, vatusa.FacilityInfo{ATM: 1000001, EC: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM, roleEC}, vatusa.FacilityInfo{ATM: 1000001, EC: 1000001}, fixedNow)
 
 	if len(ops) != 0 {
 		t.Errorf("expected no ops, got %+v", ops)
@@ -373,10 +373,10 @@ func TestPlanNoRoleUpdateWhenZauUserHasExtraRole(t *testing.T) {
 }
 
 func TestPlanNoRoleUpdateWhenCurrentRoleCodesUppercase(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"ATM"})}}
-	vUser := vController(1000001, "home", []string{"ATM"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{vatusaRoleATM})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleATM}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm"}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
 
 	if len(ops) != 0 {
 		t.Errorf("expected no ops, got %+v", ops)
@@ -384,25 +384,25 @@ func TestPlanNoRoleUpdateWhenCurrentRoleCodesUppercase(t *testing.T) {
 }
 
 func TestPlanRoleUpdateMergesLowercaseWhenCurrentUppercase(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"ATM"})}}
-	vUser := vController(1000001, "home", []string{"ATM", "EC"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{vatusaRoleATM})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleATM, vatusaRoleEC}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"atm", "ec"}, vatusa.FacilityInfo{ATM: 1000001, EC: 1000001}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM, roleEC}, vatusa.FacilityInfo{ATM: 1000001, EC: 1000001}, fixedNow)
 
 	if len(ops) != 1 || ops[0].Kind != OpUpdateRoles {
 		t.Fatalf("expected 1 role update op, got %+v", ops)
 	}
 
-	want := []string{"atm", "ec"}
+	want := []string{roleATM, roleEC}
 	if !slices.Equal(ops[0].Roles, want) {
 		t.Errorf("expected roles %v, got %v", want, ops[0].Roles)
 	}
 }
 
 func TestPlanEmitsRemoveMemberForMissingCID(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"atm"})}}
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleATM})}}
 
-	ops := Plan(roster, nil, []string{"atm"}, vatusa.FacilityInfo{}, fixedNow)
+	ops := Plan(roster, nil, []string{roleATM}, vatusa.FacilityInfo{}, fixedNow)
 
 	assertOp(t, ops, OpRemoveMember)
 }
@@ -414,7 +414,7 @@ func TestPlanEmitsRemoveCertsAfterSixMonths(t *testing.T) {
 	z.CertCodes = []string{"C1"}
 	roster := zau.Roster{Removed: []zau.User{z}}
 
-	ops := Plan(roster, nil, []string{"atm"}, vatusa.FacilityInfo{}, fixedNow)
+	ops := Plan(roster, nil, []string{roleATM}, vatusa.FacilityInfo{}, fixedNow)
 
 	assertOp(t, ops, OpRemoveCerts)
 }
@@ -426,7 +426,7 @@ func TestPlanNoRemoveCertsWithinSixMonths(t *testing.T) {
 	z.CertCodes = []string{"C1"}
 	roster := zau.Roster{Removed: []zau.User{z}}
 
-	ops := Plan(roster, nil, []string{"atm"}, vatusa.FacilityInfo{}, fixedNow)
+	ops := Plan(roster, nil, []string{roleATM}, vatusa.FacilityInfo{}, fixedNow)
 
 	assertNoOp(t, ops, OpRemoveCerts)
 }
@@ -437,18 +437,18 @@ func TestPlanNoRemoveCertsWithoutCertCodes(t *testing.T) {
 	z.RemovalDate = &removalDate
 	roster := zau.Roster{Removed: []zau.User{z}}
 
-	ops := Plan(roster, nil, []string{"atm"}, vatusa.FacilityInfo{}, fixedNow)
+	ops := Plan(roster, nil, []string{roleATM}, vatusa.FacilityInfo{}, fixedNow)
 
 	assertNoOp(t, ops, OpRemoveCerts)
 }
 
 func TestPlanHandlesEmptyHomeRoster(t *testing.T) {
-	z := zUser(1000002, true, true, []string{"ec"})
-	z.HomeFacility = "BOS"
+	z := zUser(1000002, true, true, []string{roleEC})
+	z.HomeFacility = facilityBOS
 	roster := zau.Roster{Home: nil, Visiting: []zau.User{z}}
-	vUser := vController(1000002, "visit", []string{"EC"}, "ZAU")
+	vUser := vController(1000002, "visit", []string{vatusaRoleEC}, "ZAU")
 
-	ops := Plan(roster, []vatusa.Controller{vUser}, []string{"ec"}, vatusa.FacilityInfo{EC: 1000002}, fixedNow)
+	ops := Plan(roster, []vatusa.Controller{vUser}, []string{roleEC}, vatusa.FacilityInfo{EC: 1000002}, fixedNow)
 
 	if len(ops) != 1 || ops[0].Kind != OpUpdateVisit {
 		t.Fatalf("expected 1 visit update op, got %+v", ops)
@@ -456,13 +456,13 @@ func TestPlanHandlesEmptyHomeRoster(t *testing.T) {
 }
 
 func TestPlanIsDeterministic(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"atm"})}}
-	vUser := vController(1000001, "home", []string{"ATM", "EC"}, "ZAU")
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleATM})}}
+	vUser := vController(1000001, "home", []string{vatusaRoleATM, vatusaRoleEC}, "ZAU")
 
 	staff := vatusa.FacilityInfo{ATM: 1000001, EC: 1000001}
 
-	first := Plan(roster, []vatusa.Controller{vUser}, []string{"atm", "ec"}, staff, fixedNow)
-	second := Plan(roster, []vatusa.Controller{vUser}, []string{"atm", "ec"}, staff, fixedNow)
+	first := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM, roleEC}, staff, fixedNow)
+	second := Plan(roster, []vatusa.Controller{vUser}, []string{roleATM, roleEC}, staff, fixedNow)
 
 	if !reflect.DeepEqual(first, second) {
 		t.Errorf("expected deterministic plans:\nfirst:  %+v\nsecond: %+v", first, second)
@@ -470,9 +470,9 @@ func TestPlanIsDeterministic(t *testing.T) {
 }
 
 func TestPlanACEGrantsRoleToExistingUser(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"atm"})}}
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{roleATM})}}
 
-	ops := PlanACE(roster, []int{1000001}, []string{"atm", "ace"})
+	ops := PlanACE(roster, []int{1000001}, []string{roleATM, aceRole})
 
 	if len(ops) != 1 || ops[0].Kind != OpAddACE {
 		t.Fatalf("expected 1 add-ace op, got %+v", ops)
@@ -482,7 +482,7 @@ func TestPlanACEGrantsRoleToExistingUser(t *testing.T) {
 		t.Errorf("expected cid 1000001, got %d", ops[0].CID)
 	}
 
-	want := []string{"atm", "ace"}
+	want := []string{roleATM, aceRole}
 	if !slices.Equal(ops[0].Roles, want) {
 		t.Errorf("expected roles %v, got %v", want, ops[0].Roles)
 	}
@@ -491,7 +491,7 @@ func TestPlanACEGrantsRoleToExistingUser(t *testing.T) {
 func TestPlanACESkipsNonExistentUser(t *testing.T) {
 	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, nil)}}
 
-	ops := PlanACE(roster, []int{9999999}, []string{"ace"})
+	ops := PlanACE(roster, []int{9999999}, []string{aceRole})
 
 	if len(ops) != 0 {
 		t.Errorf("expected no ops for non-existent user, got %+v", ops)
@@ -499,9 +499,9 @@ func TestPlanACESkipsNonExistentUser(t *testing.T) {
 }
 
 func TestPlanACESkipsUserWhoAlreadyHasACE(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"ace"})}}
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{aceRole})}}
 
-	ops := PlanACE(roster, []int{1000001}, []string{"ace"})
+	ops := PlanACE(roster, []int{1000001}, []string{aceRole})
 
 	if len(ops) != 0 {
 		t.Errorf("expected no ops when user already has ace, got %+v", ops)
@@ -511,7 +511,7 @@ func TestPlanACESkipsUserWhoAlreadyHasACE(t *testing.T) {
 func TestPlanACESkipsWhenRoleNotAvailable(t *testing.T) {
 	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, nil)}}
 
-	ops := PlanACE(roster, []int{1000001}, []string{"atm"})
+	ops := PlanACE(roster, []int{1000001}, []string{roleATM})
 
 	if len(ops) != 0 {
 		t.Errorf("expected no ops when ace role not available, got %+v", ops)
@@ -519,15 +519,15 @@ func TestPlanACESkipsWhenRoleNotAvailable(t *testing.T) {
 }
 
 func TestPlanACEMergesUppercaseExistingRoles(t *testing.T) {
-	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{"ATM"})}}
+	roster := zau.Roster{Home: []zau.User{zUser(1000001, true, false, []string{vatusaRoleATM})}}
 
-	ops := PlanACE(roster, []int{1000001}, []string{"atm", "ace"})
+	ops := PlanACE(roster, []int{1000001}, []string{roleATM, aceRole})
 
 	if len(ops) != 1 || ops[0].Kind != OpAddACE {
 		t.Fatalf("expected 1 add-ace op, got %+v", ops)
 	}
 
-	want := []string{"atm", "ace"}
+	want := []string{roleATM, aceRole}
 	if !slices.Equal(ops[0].Roles, want) {
 		t.Errorf("expected roles %v, got %v", want, ops[0].Roles)
 	}
@@ -536,7 +536,7 @@ func TestPlanACEMergesUppercaseExistingRoles(t *testing.T) {
 func TestPlanACEVisitingUserGetsRole(t *testing.T) {
 	roster := zau.Roster{Visiting: []zau.User{zUser(1000001, false, true, nil)}}
 
-	ops := PlanACE(roster, []int{1000001}, []string{"ace"})
+	ops := PlanACE(roster, []int{1000001}, []string{aceRole})
 
 	if len(ops) != 1 || ops[0].Kind != OpAddACE {
 		t.Fatalf("expected 1 add-ace op for visiting user, got %+v", ops)
@@ -544,17 +544,17 @@ func TestPlanACEVisitingUserGetsRole(t *testing.T) {
 }
 
 func TestPlanDoesNotMutateInputRoster(t *testing.T) {
-	home := []zau.User{zUser(1000001, true, false, []string{"atm"})}
+	home := []zau.User{zUser(1000001, true, false, []string{roleATM})}
 	roster := zau.Roster{Home: home}
-	vUser := vController(1000001, "home", []string{"ATM"}, "ZAU")
+	vUser := vController(1000001, "home", []string{vatusaRoleATM}, "ZAU")
 
-	_ = Plan(roster, []vatusa.Controller{vUser}, []string{"atm"}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
+	_ = Plan(roster, []vatusa.Controller{vUser}, []string{roleATM}, vatusa.FacilityInfo{ATM: 1000001}, fixedNow)
 
 	if len(home) != 1 {
 		t.Fatalf("input home slice modified, len=%d", len(home))
 	}
 
-	if len(home[0].RoleCodes) != 1 || home[0].RoleCodes[0] != "atm" {
+	if len(home[0].RoleCodes) != 1 || home[0].RoleCodes[0] != roleATM {
 		t.Fatalf("input home user modified: %+v", home[0])
 	}
 }

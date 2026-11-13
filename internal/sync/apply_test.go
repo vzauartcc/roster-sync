@@ -18,7 +18,7 @@ func TestApplyHandlesAllOperationKinds(t *testing.T) {
 		{Kind: OpUpdateMembership, CID: 1000002, VUser: vController(1000002, "home", nil, "ZAU")},
 		{Kind: OpUpdateVisit, CID: 1000003, VUser: vController(1000003, "visit", nil, "ZAU")},
 		{Kind: OpUpdateRating, CID: 1000004, VUser: vController(1000004, "home", nil, "ZAU")},
-		{Kind: OpUpdateRoles, CID: 1000005, Roles: []string{"atm"}},
+		{Kind: OpUpdateRoles, CID: 1000005, Roles: []string{roleATM}},
 		{Kind: OpRemoveMember, CID: 1000006},
 		{Kind: OpRemoveCerts, CID: 1000007},
 	}
@@ -144,9 +144,9 @@ func TestOperationKindString(t *testing.T) {
 }
 
 func TestAddNewRolesDeduplicates(t *testing.T) {
-	got := addNewRoles([]string{"atm", "ATM"}, []string{"ec", "ATM"})
+	got := addNewRoles([]string{roleATM, vatusaRoleATM}, []string{roleEC, vatusaRoleATM})
 
-	want := []string{"atm", "ec"}
+	want := []string{roleATM, roleEC}
 
 	if len(got) != len(want) {
 		t.Fatalf("expected %v, got %v", want, got)

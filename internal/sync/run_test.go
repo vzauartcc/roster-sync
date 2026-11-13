@@ -154,7 +154,7 @@ func TestRunCreatesNewUserWithRoles(t *testing.T) {
 		t.Errorf("unexpected payload: %+v", payload)
 	}
 
-	if !slices.Equal(payload.RoleCodes, []string{"atm"}) {
+	if !slices.Equal(payload.RoleCodes, []string{roleATM}) {
 		t.Errorf("expected roles [atm], got %v", payload.RoleCodes)
 	}
 }
@@ -192,7 +192,7 @@ func TestRunUpdatesRolesWithExistingRolesIncluded(t *testing.T) {
 		t.Fatalf("invalid patch body %q: %v", patch.body, err)
 	}
 
-	if !slices.Equal(payload.Roles, []string{"atm", "ec"}) {
+	if !slices.Equal(payload.Roles, []string{roleATM, roleEC}) {
 		t.Errorf("expected roles [atm ec], got %v", payload.Roles)
 	}
 }
@@ -230,7 +230,7 @@ func TestRunAssignsTeamRoleToFacilityNonHolder(t *testing.T) {
 		t.Fatalf("invalid post body %q: %v", post.body, err)
 	}
 
-	if !slices.Equal(payload.RoleCodes, []string{"et"}) {
+	if !slices.Equal(payload.RoleCodes, []string{roleET}) {
 		t.Errorf("expected roles [et], got %v", payload.RoleCodes)
 	}
 }
@@ -279,7 +279,7 @@ func TestRunDegradesWhenFacilityInfoFetchFails(t *testing.T) {
 		t.Fatalf("invalid post body %q: %v", post.body, err)
 	}
 
-	if !slices.Equal(payload.RoleCodes, []string{"et"}) {
+	if !slices.Equal(payload.RoleCodes, []string{roleET}) {
 		t.Errorf("expected roles [et], got %v", payload.RoleCodes)
 	}
 }
@@ -328,7 +328,7 @@ func TestRunGrantsACERoleToExistingUser(t *testing.T) {
 		t.Fatalf("invalid put body %q: %v", put.body, err)
 	}
 
-	if !slices.Equal(payload.Roles, []string{"atm", "ace"}) {
+	if !slices.Equal(payload.Roles, []string{roleATM, aceRole}) {
 		t.Errorf("expected roles [atm ace], got %v", payload.Roles)
 	}
 }
