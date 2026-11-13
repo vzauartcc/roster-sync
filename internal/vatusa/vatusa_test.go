@@ -90,6 +90,81 @@ func TestFetchACEBuildsURLAndDecodes(t *testing.T) {
 	}
 }
 
+func TestFetchFacilityInfoBuildsURLAndDecodes(t *testing.T) {
+	var gotPath, gotURLPath string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.RawQuery
+		gotURLPath = r.URL.Path
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"testing":false,"data":{"facility":{"info":{"id":"ZAU","atm":1000001,"datm":1000002,"ta":1000003,"ec":1000004,"fe":1000005,"wm":1000006},"roles":[]}}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "secret", nil)
+
+	info, err := client.FetchFacilityInfo(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotURLPath != "/facility/ZAU" {
+		t.Errorf("expected path /facility/ZAU, got %q", gotURLPath)
+	}
+
+	if !strings.Contains(gotPath, "apikey=secret") {
+		t.Errorf("expected apikey=secret in query, got %q", gotPath)
+	}
+
+	if !strings.Contains(gotPath, "&t=") {
+		t.Errorf("expected timestamp param in query, got %q", gotPath)
+	}
+
+	want := FacilityInfo{ATM: 1000001, DATM: 1000002, TA: 1000003, EC: 1000004, FE: 1000005, WM: 1000006}
+	if *info != want {
+		t.Errorf("expected facility info %+v, got %+v", want, *info)
+	}
+}
+
+func TestFetchFacilityInfoReturnsErrorOnNon200(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "secret", nil)
+
+	_, err := client.FetchFacilityInfo(context.Background())
+	if err == nil {
+		t.Fatal("expected error on non-200 response")
+	}
+}
+
+func TestFetchFacilityInfoReturnsErrorWhenMissingConfig(t *testing.T) {
+	client := NewClient("", "", nil)
+
+	_, err := client.FetchFacilityInfo(context.Background())
+	if err == nil {
+		t.Fatal("expected error when URL or API key is missing")
+	}
+}
+
+func TestFetchFacilityInfoReturnsErrorOnInvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`not json`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "secret", nil)
+
+	_, err := client.FetchFacilityInfo(context.Background())
+	if err == nil {
+		t.Fatal("expected error on invalid JSON")
+	}
+}
+
 func TestFetchACEReturnsErrorOnNon200(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)

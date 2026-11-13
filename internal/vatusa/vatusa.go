@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
 )
@@ -35,8 +34,6 @@ func NewClient(url, apiKey string, httpClient *http.Client) *Client {
 }
 
 func (c *Client) FetchRoster(ctx context.Context) ([]Controller, error) {
-	start := time.Now()
-
 	req, err := c.newVatusaRequest(ctx, http.MethodGet, "/facility/ZAU/roster/both")
 	if err != nil {
 		return nil, err
@@ -58,8 +55,6 @@ func (c *Client) FetchRoster(ctx context.Context) ([]Controller, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	slog.Info("vatusa roster fetch complete", "duration_seconds", time.Since(start).Seconds())
 
 	return vatusaData.Data, nil
 }
@@ -93,6 +88,32 @@ func (c *Client) FetchACE(ctx context.Context) ([]int, error) {
 	}
 
 	return cids, nil
+}
+
+func (c *Client) FetchFacilityInfo(ctx context.Context) (*FacilityInfo, error) {
+	req, err := c.newVatusaRequest(ctx, http.MethodGet, "/facility/ZAU")
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidStatus, resp.Status)
+	}
+
+	var facilityData Facility
+
+	err = json.NewDecoder(resp.Body).Decode(&facilityData)
+	if err != nil {
+		return nil, err
+	}
+
+	return &facilityData.Data.Facility.Info, nil
 }
 
 func (c *Client) newVatusaRequest(ctx context.Context, method, path string) (*http.Request, error) {
