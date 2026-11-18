@@ -17,6 +17,27 @@ type ACEMember struct {
 	CID int `json:"cid"`
 }
 
+type Facility struct {
+	Data FacilityData `json:"data"`
+}
+
+type FacilityData struct {
+	Facility FacilityDetails `json:"facility"`
+}
+
+type FacilityDetails struct {
+	Info FacilityInfo `json:"info"`
+}
+
+type FacilityInfo struct {
+	ATM  int `json:"atm"`
+	DATM int `json:"datm"`
+	TA   int `json:"ta"`
+	EC   int `json:"ec"`
+	FE   int `json:"fe"`
+	WM   int `json:"wm"`
+}
+
 type Role struct {
 	ID        int       `json:"id"`
 	CID       int       `json:"cid"`

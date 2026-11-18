@@ -15,6 +15,7 @@ func Plan(
 	zauRoster zau.Roster,
 	vatusaControllers []vatusa.Controller,
 	availableRoles []string,
+	staff vatusa.FacilityInfo,
 	now time.Time,
 ) []Operation {
 	allZauControllers := make([]zau.User, 0,
@@ -77,7 +78,7 @@ func Plan(
 	for _, vUser := range vatusaControllers {
 		zUser, exists := zauByCID[vUser.CID]
 
-		desiredRoles := filterRoles(vUser.Roles, availableRoleSet)
+		desiredRoles := filterRoles(vUser.Roles, availableRoleSet, staff, vUser.CID)
 
 		if !exists {
 			ops = append(ops, Operation{
@@ -123,7 +124,7 @@ func Plan(
 		}
 
 		roles := addNewRoles(zUser.RoleCodes, desiredRoles)
-		if len(roles) != len(zUser.RoleCodes) {
+		if !sameRoleSet(roles, zUser.RoleCodes) {
 			ops = append(ops, Operation{
 				Kind:  OpUpdateRoles,
 				CID:   vUser.CID,
@@ -138,7 +139,12 @@ func Plan(
 
 // filterRoles returns the lowercase roles assignable on the ZAU roster:
 // roles for ZAU or ZHQ that exist in the roster's available roles.
-func filterRoles(roles []vatusa.Role, available map[string]bool) []string {
+func filterRoles(
+	roles []vatusa.Role,
+	available map[string]bool,
+	staff vatusa.FacilityInfo,
+	cid int,
+) []string {
 	assignable := make([]string, 0, len(roles))
 
 	for _, userRole := range roles {
@@ -148,7 +154,30 @@ func filterRoles(roles []vatusa.Role, available map[string]bool) []string {
 
 		lcRole := strings.ToLower(userRole.Role)
 
-		if available[lcRole] {
+		if !available[lcRole] {
+			continue
+		}
+
+		switch lcRole {
+		case "atm":
+			if staff.ATM == cid {
+				assignable = append(assignable, lcRole)
+			}
+		case "datm":
+			if staff.DATM == cid {
+				assignable = append(assignable, lcRole)
+			}
+		case "ta":
+			if staff.TA == cid {
+				assignable = append(assignable, lcRole)
+			}
+		case "ec":
+			assignable = appendStaffOrTeam(assignable, lcRole, "et", staff.EC == cid, available)
+		case "fe":
+			assignable = appendStaffOrTeam(assignable, lcRole, "ft", staff.FE == cid, available)
+		case "wm":
+			assignable = appendStaffOrTeam(assignable, lcRole, "wt", staff.WM == cid, available)
+		default:
 			assignable = append(assignable, lcRole)
 		}
 	}
@@ -156,11 +185,53 @@ func filterRoles(roles []vatusa.Role, available map[string]bool) []string {
 	return assignable
 }
 
-// addNewRoles appends roles to the current set, preserving existing roles and
-// never removing any. Role codes are normalized to lowercase on both sides so
-// the membership check is case-insensitive against the VATUSA-side roles,
-// which are already lowercased by filterRoles.
+// appendStaffOrTeam appends the named role when the CID is the facility
+// staff holder, otherwise the team role when it is available.
+func appendStaffOrTeam(
+	assignable []string,
+	role, team string,
+	isHolder bool,
+	available map[string]bool,
+) []string {
+	if isHolder {
+		return append(assignable, role)
+	}
+
+	if available[team] {
+		return append(assignable, team)
+	}
+
+	return assignable
+}
+
+// staffTeamPairs maps each named staff role to the team role used when the
+// controller is not the named holder.
+var staffTeamPairs = [][2]string{
+	{"ec", "et"},
+	{"fe", "ft"},
+	{"wm", "wt"},
+}
+
+// addNewRoles merges the desired roles into the current set. Existing roles
+// are preserved, except that the team role is dropped when the controller is
+// the named staff holder (e.g. et is removed when ec is assigned). Role codes
+// are normalized to lowercase on both sides so the membership check is
+// case-insensitive against the VATUSA-side roles, which are already lowercased
+// by filterRoles.
 func addNewRoles(current []string, newRoles []string) []string {
+	desired := make(map[string]bool, len(newRoles))
+	for _, role := range newRoles {
+		desired[strings.ToLower(role)] = true
+	}
+
+	excluded := make(map[string]bool)
+
+	for _, pair := range staffTeamPairs {
+		if desired[pair[0]] && !desired[pair[1]] {
+			excluded[pair[1]] = true
+		}
+	}
+
 	seen := make(map[string]bool, len(current)+len(newRoles))
 
 	merged := make([]string, 0, len(current)+len(newRoles))
@@ -168,7 +239,7 @@ func addNewRoles(current []string, newRoles []string) []string {
 	for _, role := range current {
 		lcRole := strings.ToLower(role)
 
-		if seen[lcRole] {
+		if seen[lcRole] || excluded[lcRole] {
 			continue
 		}
 
@@ -188,6 +259,28 @@ func addNewRoles(current []string, newRoles []string) []string {
 	}
 
 	return merged
+}
+
+// sameRoleSet reports whether two role slices contain the same codes,
+// ignoring order, case, and duplicates.
+func sameRoleSet(current []string, desired []string) bool {
+	set := make(map[string]bool, len(current))
+
+	for _, role := range current {
+		set[strings.ToLower(role)] = true
+	}
+
+	for _, role := range desired {
+		lcRole := strings.ToLower(role)
+
+		if !set[lcRole] {
+			return false
+		}
+
+		delete(set, lcRole)
+	}
+
+	return len(set) == 0
 }
 
 func checkCoreInfo(vUser vatusa.Controller, zUser zau.User) bool {

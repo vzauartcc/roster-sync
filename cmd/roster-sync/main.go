@@ -76,6 +76,8 @@ func main() {
 	if cfg.LocalDevEnv != "" {
 		slog.Info("invoked from script, running initial sync")
 
+		zauClient = zau.NewClient("https://devapi.zauartcc.org", cfg.ZauAPIKey, nil)
+
 		go run()
 	} else {
 		slog.Info("sleeping until next run")

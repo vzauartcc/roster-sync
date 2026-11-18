@@ -23,7 +23,12 @@ var (
 // failure degrades gracefully (the sync proceeds without role updates).
 // A fully-empty roster from either source aborts the sync as a safety guard
 // against mass changes.
-func Run(ctx context.Context, vatusaClient *vatusa.Client, zauClient *zau.Client, now time.Time) (Result, error) {
+func Run(
+	ctx context.Context,
+	vatusaClient *vatusa.Client,
+	zauClient *zau.Client,
+	now time.Time,
+) (Result, error) {
 	vatusaControllers, err := vatusaClient.FetchRoster(ctx)
 	if err != nil {
 		return Result{}, err
@@ -42,6 +47,20 @@ func Run(ctx context.Context, vatusaClient *vatusa.Client, zauClient *zau.Client
 		return Result{}, ErrEmptyZauRoster
 	}
 
+	staff, err := vatusaClient.FetchFacilityInfo(ctx)
+	if err != nil {
+		slog.Warn("failed to fetch staff roster, continuing without staff sync", "error", err)
+
+		staff = &vatusa.FacilityInfo{
+			ATM:  0,
+			DATM: 0,
+			TA:   0,
+			EC:   0,
+			FE:   0,
+			WM:   0,
+		}
+	}
+
 	availableRoles, err := zauClient.FetchRoles(ctx)
 	if err != nil {
 		slog.Warn("failed to fetch ZAU roles, continuing without role sync", "error", err)
@@ -49,7 +68,7 @@ func Run(ctx context.Context, vatusaClient *vatusa.Client, zauClient *zau.Client
 		availableRoles = []string{}
 	}
 
-	ops := Plan(zauRoster, vatusaControllers, availableRoles, now)
+	ops := Plan(zauRoster, vatusaControllers, availableRoles, *staff, now)
 
 	aceCIDs, err := vatusaClient.FetchACE(ctx)
 	if err != nil {
@@ -116,7 +135,12 @@ func apply(ctx context.Context, zauClient *zau.Client, ops []Operation, now time
 		case OpUpdateVisit:
 			vUser := operation.VUser
 
-			err = zauClient.SetVisitingController(ctx, vUser.CID, vUser.Membership != homeMembership, vUser.Facility)
+			err = zauClient.SetVisitingController(
+				ctx,
+				vUser.CID,
+				vUser.Membership != homeMembership,
+				vUser.Facility,
+			)
 			if err == nil {
 				result.MadeVisitor++
 			}
@@ -150,7 +174,15 @@ func apply(ctx context.Context, zauClient *zau.Client, ops []Operation, now time
 		}
 
 		if err != nil {
-			slog.Error("failed to apply operation", "op", operation.Kind, "cid", operation.CID, "error", err)
+			slog.Error(
+				"failed to apply operation",
+				"op",
+				operation.Kind,
+				"cid",
+				operation.CID,
+				"error",
+				err,
+			)
 		}
 	}
 
