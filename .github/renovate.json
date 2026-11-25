@@ -7,7 +7,9 @@
   ],
   "timezone": "America/Chicago",
   "schedule": ["* 10-18 * * *"],
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "prConcurrentLimit": 5,
   "minimumReleaseAge": "21 days",
   "internalChecksFilter": "strict",
